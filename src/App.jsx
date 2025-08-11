@@ -3,24 +3,24 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 /**
  * Football Quiz — single-file React + Tailwind (brand-font edition)
  *
- * What changed vs previous draft
- * - Injects your fonts via <link> (edit FONT_LINK_HREF and FONT_FAMILIES below)
- * - Uses utility classes `.font-display` for big headings and `.font-ui` for UI
- * - Colors tweaked to your navy → blue gradient with hot-pink accent
- * - Share-card exporter waits for fonts to load for accurate PNG text
- * - HowTo modal now: same header/body color, reliable scrolling (iOS-friendly),
- *   and a subtle bottom fade to hint scrollability.
+ * New in this version
+ * - Removed "bonus question" mechanic entirely.
+ * - Added per-player **X2 help**:
+ *     • Chosen ONLY on the Category screen.
+ *     • One use per player per game.
+ *     • Applies to THIS question only.
+ *     • Doubles ONLY base points (+1/+2/+3 × basePoints × 2); streak +1 is NOT multiplied.
+ *     • Not allowed on the Final question.
+ * - Updated Greek & English "How to" text to match rules (incl. who gets points if first is wrong).
+ * - Keeps the HowTo modal improvements (matching bg + reliable scroll).
  *
  * Drop this into a Tailwind React app (Vite/CRA). No extra deps.
  */
 
 // ——— Brand font wiring ———
-// If you already import fonts in your index.html, set FONT_LINK_HREF to null
-// and just correct the `FONT_FAMILIES` names below to match your CSS font-family names.
 const FONT_LINK_HREF =
   "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans:wght@400;700&display=swap&subset=greek";
 
-// Use exact family names as exposed by your CSS (Google Fonts page shows them)
 const FONT_FAMILIES = {
   display: 'Inter, "Noto Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
   ui: 'Inter, "Noto Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
@@ -29,10 +29,10 @@ const FONT_FAMILIES = {
 
 // ——— Theme ———
 const THEME = {
-  gradientFrom: "#223B57", // deep navy (matches your screenshots)
-  gradientTo: "#2F4E73", // slate-blue
-  accent: "#F11467", // hot pink
-  card: "rgba(17, 24, 39, 0.55)", // slate-900/55
+  gradientFrom: "#223B57",
+  gradientTo: "#2F4E73",
+  accent: "#F11467",
+  card: "rgba(17, 24, 39, 0.55)",
   border: "rgba(255,255,255,0.08)",
 };
 
@@ -41,13 +41,13 @@ const STORAGE_KEY = "quiz_prototype_state_v2";
 const STAGES = { CATEGORY: "category", QUESTION: "question", ANSWER: "answer", FINALE: "finale", RESULTS: "results" };
 const DEFAULT_TIMER_SECONDS = 15;
 
-// Sample questions — replace with your own
+// Sample questions — basePoints only (no bonus flag)
 const QUESTIONS = [
-  { id: "q1", category: "ΚΥΠΡΙΑΚΟ", basePoints: 1, text: "Ποιος ήταν ο τερματοφύλακας του ΑΠΟΕΛ στον αγώνα Athletic Bilbao – ΑΠΟΕΛ (3–2);", answer: "Waterman", fact: "Ο Μπόι Βάτερμαν ήταν καθοριστικός στην ευρωπαϊκή πορεία του ΑΠΟΕΛ." },
-  { id: "q2", category: "PREMIER LEAGUE", basePoints: 1, text: "Ποια ομάδα κατέκτησε πρώτη την Premier League (1992–93);", answer: "Manchester United", fact: "Πρώτη χρονιά της Premier League μετά τη μετονομασία της First Division." },
-  { id: "q3", category: "CHAMPIONS LEAGUE", basePoints: 1, text: "Σε ποια πόλη διεξήχθη ο τελικός UCL 2016 Real–Atlético;", answer: "Μιλάνο", fact: "Το San Siro φιλοξένησε τον τελικό, που κρίθηκε στα πέναλτι." },
-  { id: "q4", category: "EURO", basePoints: 1, text: "Ποια χώρα κατέκτησε το EURO 2004;", answer: "Ελλάδα", fact: "Η Ελλάδα νίκησε την Πορτογαλία στο Ντα Λουζ (1–0)." },
-  { id: "q5", category: "ΤΕΛΙΚΟΣ", basePoints: 1, text: "Finale: Ποιος είναι ο πρώτος σκόρερ στην ιστορία του EURO;", answer: "Κριστιάνο Ρονάλντο", fact: "Κατέχει τα περισσότερα γκολ σε τελικά στάδια EURO." },
+  { id: "q1", category: "ΚΥΠΡΙΑΚΟ",        basePoints: 1, text: "Ποιος ήταν ο τερματοφύλακας του ΑΠΟΕΛ στον αγώνα Athletic Bilbao – ΑΠΟΕΛ (3–2);", answer: "Waterman",           fact: "Ο Μπόι Βάτερμαν ήταν καθοριστικός στην ευρωπαϊκή πορεία του ΑΠΟΕΛ." },
+  { id: "q2", category: "PREMIER LEAGUE",   basePoints: 1, text: "Ποια ομάδα κατέκτησε πρώτη την Premier League (1992–93);",                        answer: "Manchester United", fact: "Πρώτη χρονιά της Premier League μετά τη μετονομασία της First Division." },
+  { id: "q3", category: "CHAMPIONS LEAGUE", basePoints: 2, text: "Σε ποια πόλη διεξήχθη ο τελικός UCL 2016 Real–Atlético;",                        answer: "Μιλάνο",             fact: "Το San Siro φιλοξένησε τον τελικό, που κρίθηκε στα πέναλτι." },
+  { id: "q4", category: "EURO",             basePoints: 1, text: "Ποια χώρα κατέκτησε το EURO 2004;",                                              answer: "Ελλάδα",             fact: "Η Ελλάδα νίκησε την Πορτογαλία στο Ντα Λουζ (1–0)." },
+  { id: "q5", category: "ΤΕΛΙΚΟΣ",          basePoints: 1, text: "Finale: Ποιος είναι ο πρώτος σκόρερ στην ιστορία του EURO;",                      answer: "Κριστιάνο Ρονάλντο", fact: "Κατέχει τα περισσότερα γκολ σε τελικά στάδια EURO." },
 ];
 
 function clamp(n, a, b) { return Math.min(b, Math.max(a, n)); }
@@ -75,7 +75,7 @@ export default function QuizPrototype() {
         --brand-accent: ${THEME.accent}; 
         --brand-card: ${THEME.card}; 
         --brand-border: ${THEME.border};
-        --howto-bg: rgba(15,23,42,0.95); /* matches header + body of HowTo modal */
+        --howto-bg: rgba(15,23,42,0.95);
       }
       .font-display { font-family: ${FONT_FAMILIES.display}; }
       .font-ui { font-family: ${FONT_FAMILIES.ui}; }
@@ -88,7 +88,7 @@ export default function QuizPrototype() {
       .card { background: var(--brand-card); border:1px solid var(--brand-border); border-radius: 1.5rem; padding:1.5rem; box-shadow: 0 10px 24px rgba(0,0,0,.35); }
       .pill { border-radius: 999px; padding: .25rem .6rem; font-weight: 700; }
 
-      /* — HowTo modal helpers — */
+      /* HowTo modal helpers */
       .scroll-area { overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
       .scroll-area::-webkit-scrollbar { width:10px; }
       .scroll-area::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.18); border-radius:999px; }
@@ -103,16 +103,18 @@ export default function QuizPrototype() {
   const [stage, setStage] = usePersistentState(`${STORAGE_KEY}:stage`, STAGES.CATEGORY);
   const lastIndex = QUESTIONS.length - 1; const isFinalIndex = index === lastIndex; const q = QUESTIONS[index];
 
-  // Bonus multiplier map (10% x2 per question)
-  const [bonusMap, setBonusMap] = usePersistentState(`${STORAGE_KEY}:bonusMap`, {});
-  const currentMultiplier = (bonusMap[q.id] || 1) * (q.basePoints || 1);
+  // ——— X2 help state (one use per player per game; arm only on Category) ———
+  const [x2, setX2] = usePersistentState(`${STORAGE_KEY}:x2`, {
+    p1: { available: true, armedIndex: null },
+    p2: { available: true, armedIndex: null },
+  });
 
   // Players
   const [p1, setP1] = usePersistentState(`${STORAGE_KEY}:p1`, { name: "Player 1", score: 0, streak: 0, maxStreak: 0 });
   const [p2, setP2] = usePersistentState(`${STORAGE_KEY}:p2`, { name: "Player 2", score: 0, streak: 0, maxStreak: 0 });
   const [lastCorrect, setLastCorrect] = usePersistentState(`${STORAGE_KEY}:lastCorrect`, null);
 
-  // Finale wagers (Jeopardy)
+  // Finale wagers
   const [wager, setWager] = usePersistentState(`${STORAGE_KEY}:wager`, { p1: 0, p2: 0 });
   const [finalResolved, setFinalResolved] = usePersistentState(`${STORAGE_KEY}:finalResolved`, { p1: false, p2: false });
   const [finalFirst, setFinalFirst] = usePersistentState(`${STORAGE_KEY}:finalFirst`, null);
@@ -124,10 +126,10 @@ export default function QuizPrototype() {
   const [showHowTo, setShowHowTo] = useState(false);
   const [howToLang, setHowToLang] = useState('en');
 
+  // On entering Category: reset finale flags for safety; timer reset; (X2 stays as chosen)
   useEffect(() => {
     if (stage !== STAGES.CATEGORY) return;
     setFinalResolved({ p1: false, p2: false }); setFinalFirst(null); setWager({ p1: 0, p2: 0 });
-    if (!bonusMap[q.id]) setBonusMap((m) => ({ ...m, [q.id]: Math.random() < 0.1 ? 2 : 1 }));
     setTimeLeft(DEFAULT_TIMER_SECONDS);
   }, [stage, index]);
 
@@ -144,19 +146,33 @@ export default function QuizPrototype() {
 
   const progress = useMemo(() => clamp(1 - timeLeft / DEFAULT_TIMER_SECONDS, 0, 1), [timeLeft]);
 
-  function awardTo(key, base = 1, { useMultiplier = true } = {}) {
-    const mult = useMultiplier ? currentMultiplier : 1;
-    const baseDelta = base * mult; // category multiplier applies only to the base points
-    if (key === "p1") {
+  // X2 helpers
+  function canArmX2(side) {
+    const player = x2[side];
+    return player.available && !isFinalIndex && stage === STAGES.CATEGORY;
+  }
+  function armX2(side) {
+    if (!canArmX2(side)) return;
+    setX2((s) => ({ 
+      ...s, 
+      [side]: { available: false, armedIndex: index }  // consume upon activation; applies to THIS question
+    }));
+  }
+  function isX2ActiveFor(side) {
+    const player = x2[side];
+    return player.armedIndex === index; // active for this question only
+  }
+
+  function awardTo(side, base = 1, { useMultiplier = true } = {}) {
+    // Multiplier = basePoints × (x2 active? 2 : 1). Streak +1 applied after, not multiplied.
+    const baseMult = (q.basePoints || 1) * (useMultiplier ? (isX2ActiveFor(side) ? 2 : 1) : 1);
+    const baseDelta = base * baseMult;
+
+    if (side === "p1") {
       setP1((s) => {
         const newStreak = lastCorrect === "p1" ? s.streak + 1 : 1;
-        const streakBonus = newStreak >= 3 ? 1 : 0; // flat +1 from 3rd correct (not multiplied)
-        return {
-          ...s,
-          score: s.score + baseDelta + streakBonus,
-          streak: newStreak,
-          maxStreak: Math.max(s.maxStreak, newStreak),
-        };
+        const streakBonus = newStreak >= 3 ? 1 : 0; // not multiplied
+        return { ...s, score: s.score + baseDelta + streakBonus, streak: newStreak, maxStreak: Math.max(s.maxStreak, newStreak) };
       });
       setP2((s) => ({ ...s, streak: lastCorrect === "p1" ? 0 : s.streak }));
       setLastCorrect("p1");
@@ -164,39 +180,36 @@ export default function QuizPrototype() {
       setP2((s) => {
         const newStreak = lastCorrect === "p2" ? s.streak + 1 : 1;
         const streakBonus = newStreak >= 3 ? 1 : 0;
-        return {
-          ...s,
-          score: s.score + baseDelta + streakBonus,
-          streak: newStreak,
-          maxStreak: Math.max(s.maxStreak, newStreak),
-        };
+        return { ...s, score: s.score + baseDelta + streakBonus, streak: newStreak, maxStreak: Math.max(s.maxStreak, newStreak) };
       });
       setP1((s) => ({ ...s, streak: lastCorrect === "p2" ? 0 : s.streak }));
       setLastCorrect("p2");
     }
   }
-  function adjustScore(key, delta) { (key === "p1" ? setP1 : setP2)((s) => ({ ...s, score: s.score + delta })); }
 
-  // Jeopardy finale: resolve per player once
-  function finalizeOutcome(key, outcome) {
-    const bet = key === "p1" ? wager.p1 : wager.p2;
-    if (finalResolved[key] || bet <= 0) return;
+  function finalizeOutcome(side, outcome) {
+    const bet = side === "p1" ? wager.p1 : wager.p2;
+    if (finalResolved[side] || bet <= 0) return;
     if (outcome === "correct") {
-      if (!finalFirst) setFinalFirst(key);
-      // Jeopardy: correct = +bet (no multiplier, no streak)
-      adjustScore(key, bet);
+      if (!finalFirst) setFinalFirst(side);
+      // No multipliers allowed in Final; just +/- bet
+      (side === "p1" ? setP1 : setP2)((s) => ({ ...s, score: s.score + bet }));
     } else {
-      // Jeopardy: wrong = -bet
-      adjustScore(key, -bet);
+      (side === "p1" ? setP1 : setP2)((s) => ({ ...s, score: s.score - bet }));
     }
-    setFinalResolved((fr) => ({ ...fr, [key]: true }));
+    setFinalResolved((fr) => ({ ...fr, [side]: true }));
   }
 
   function next() {
     if (stage === STAGES.CATEGORY) setStage(STAGES.QUESTION);
     else if (stage === STAGES.FINALE) setStage(STAGES.QUESTION);
     else if (stage === STAGES.QUESTION) setStage(STAGES.ANSWER);
-    else if (stage === STAGES.ANSWER) { if (index < lastIndex) { setIndex((i) => i + 1); setStage(STAGES.CATEGORY); } else setStage(STAGES.RESULTS); }
+    else if (stage === STAGES.ANSWER) { 
+      if (index < lastIndex) { 
+        setIndex((i) => i + 1); 
+        setStage(STAGES.CATEGORY);
+      } else setStage(STAGES.RESULTS); 
+    }
   }
   function previous() {
     if (stage === STAGES.QUESTION) setStage(STAGES.CATEGORY);
@@ -207,20 +220,19 @@ export default function QuizPrototype() {
   }
 
   function resetGame() {
-    setIndex(0); setStage(STAGES.CATEGORY); setBonusMap({});
-    setP1({ name: p1.name, score: 0, streak: 0, maxStreak: 0 }); setP2({ name: p2.name, score: 0, streak: 0, maxStreak: 0 });
-    setWager({ p1: 0, p2: 0 }); setFinalResolved({ p1: false, p2: false }); setLastCorrect(null); setTimeLeft(DEFAULT_TIMER_SECONDS);
+    setIndex(0); setStage(STAGES.CATEGORY);
+    setP1({ name: p1.name, score: 0, streak: 0, maxStreak: 0 });
+    setP2({ name: p2.name, score: 0, streak: 0, maxStreak: 0 });
+    setWager({ p1: 0, p2: 0 }); setFinalResolved({ p1: false, p2: false }); setLastCorrect(null);
+    setTimeLeft(DEFAULT_TIMER_SECONDS);
+    setX2({ p1: { available: true, armedIndex: null }, p2: { available: true, armedIndex: null } });
   }
 
   async function exportShareCard() {
     const w = 1080, h = 1350; const c = document.createElement("canvas"); c.width = w; c.height = h; const ctx = c.getContext("2d");
-    // ensure web fonts are ready so canvas uses them
     if (document.fonts && document.fonts.ready) { try { await document.fonts.ready; } catch {} }
-    // bg gradient
     const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, THEME.gradientFrom); g.addColorStop(1, THEME.gradientTo); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-    // title
     ctx.fillStyle = "#fff"; ctx.textAlign = "center"; ctx.font = `800 64px Inter, Noto Sans, system-ui, sans-serif`; ctx.fillText("Football Quiz — Results", w/2, 140);
-    // scores
     ctx.font = `700 52px Inter, Noto Sans, system-ui, sans-serif`; ctx.fillText(`${p1.name}: ${p1.score}`, w/2, 300); ctx.fillText(`${p2.name}: ${p2.score}`, w/2, 370);
     const winner = p1.score === p2.score ? "Draw!" : p1.score > p2.score ? `${p1.name} Wins 🏆` : `${p2.name} Wins 🏆`;
     ctx.font = `800 76px Inter, Noto Sans, system-ui, sans-serif`; ctx.fillText(winner, w/2, 520);
@@ -250,7 +262,6 @@ export default function QuizPrototype() {
     );
   }
 
-  
   function StageCard({ children }) { return <div className="card">{children}</div>; }
 
   function CategoryStage() {
@@ -258,13 +269,45 @@ export default function QuizPrototype() {
       <StageCard>
         <div className="flex items-center justify-between">
           <div className="text-rose-400 text-4xl">🏆</div>
-          {currentMultiplier > 1 && <div className="pill text-white" style={{ background: "#6D28D9" }}>Bonus x{currentMultiplier}</div>}
+          <div className="flex items-center gap-2">
+            <div className="pill text-white bg-slate-700/70">Category ×{q.basePoints || 1}</div>
+          </div>
         </div>
         <h2 className="mt-4 text-center text-3xl font-extrabold tracking-wide font-display">{q.category}</h2>
         <p className="mt-2 text-center font-ui" style={{ color: THEME.accent }}>x{q.basePoints} Points</p>
+
+        {/* X2 controls (Category only). Disabled on Final */}
+        <div className="mt-5 rounded-2xl bg-slate-900/50 p-4">
+          <div className="mb-2 text-center text-sm text-slate-300 font-ui">Βοήθεια Χ2</div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <X2Control
+              label={p1.name}
+              side="p1"
+              armed={isX2ActiveFor("p1")}
+              available={x2.p1.available}
+              disabled={!canArmX2("p1")}
+              grad="linear-gradient(90deg,#BA1ED3,#F11467)"
+              onArm={() => armX2("p1")}
+              isFinal={isFinalIndex}
+            />
+            <X2Control
+              label={p2.name}
+              side="p2"
+              armed={isX2ActiveFor("p2")}
+              available={x2.p2.available}
+              disabled={!canArmX2("p2")}
+              grad="linear-gradient(90deg,#00A7D7,#2563EB)"
+              onArm={() => armX2("p2")}
+              isFinal={isFinalIndex}
+            />
+          </div>
+          {isFinalIndex && <div className="mt-2 text-center text-xs text-slate-400">Η Χ2 βοήθεια δεν επιτρέπεται στον Τελικό.</div>}
+        </div>
+
+        {/* Final betting UI on last question */}
         {isFinalIndex && (
           <div className="mt-5 rounded-2xl bg-slate-900/50 p-4">
-            <div className="mb-2 text-center text-sm text-slate-300 font-ui">Finale — Place your bets (0–3)</div>
+            <div className="mb-2 text-center text-sm text-slate-300 font-ui">Τελικός — Τοποθετήστε το ποντάρισμά σας (0–3)</div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <WagerControl
                 label={p1.name}
@@ -279,7 +322,7 @@ export default function QuizPrototype() {
                 grad="linear-gradient(90deg,#00A7D7,#2563EB)"
               />
             </div>
-            <div className="mt-2 text-center text-xs text-slate-400">Jeopardy: Right = +bet; Wrong = −bet. First-to-say wins (only one Correct can be applied).</div>
+            <div className="mt-2 text-center text-xs text-slate-400">Σωστό = +ποντάρισμα • Λάθος = −ποντάρισμα • Προτείνεται ταυτόχρονη απάντηση.</div>
           </div>
         )}
         <div className="mt-6 flex justify-center gap-3"><NavButtons /></div>
@@ -296,10 +339,17 @@ export default function QuizPrototype() {
           </div>
           <div className="mt-1 text-right text-xs text-slate-400 font-ui">{timerOn ? `${timeLeft}s` : "Timer off"}</div>
         </div>
+
         <div className="flex items-start justify-between">
-          <div className="rounded-full bg-slate-700/70 px-3 py-1 text-xs font-semibold">Multiplier x{currentMultiplier}</div>
+          <div className="flex items-center gap-2">
+            <div className="rounded-full bg-slate-700/70 px-3 py-1 text-xs font-semibold">Category ×{q.basePoints || 1}</div>
+            {/* Show per-player X2 status */}
+            {isX2ActiveFor("p1") && <div className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: "linear-gradient(90deg,#BA1ED3,#F11467)" }}>{p1.name}: ×2</div>}
+            {isX2ActiveFor("p2") && <div className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: "linear-gradient(90deg,#00A7D7,#2563EB)" }}>{p2.name}: ×2</div>}
+          </div>
           <button onClick={() => setTimerOn((v) => !v)} className="btn btn-neutral text-xs" aria-label="toggle timer">{timerOn ? "Pause" : "Resume"}</button>
         </div>
+
         <h3 className="mt-4 font-display text-2xl font-bold leading-snug">{q.text}</h3>
         <div className="mt-6 flex justify-center"><button onClick={() => setStage(STAGES.ANSWER)} className="btn btn-accent">Reveal Answer</button></div>
       </StageCard>
@@ -313,6 +363,13 @@ export default function QuizPrototype() {
           <div className="font-display text-3xl font-extrabold">{q.answer}</div>
           {q.fact && <div className="mt-2 font-ui text-sm text-slate-300">ℹ️ {q.fact}</div>}
         </div>
+
+        {/* Per-player X2 status reminder */}
+        <div className="mt-3 text-center text-xs text-slate-400 font-ui">
+          {isX2ActiveFor("p1") && <span className="mr-2">({p1.name}: ×2 ενεργό)</span>}
+          {isX2ActiveFor("p2") && <span>({p2.name}: ×2 ενεργό)</span>}
+        </div>
+
         <div className="mt-6 grid grid-cols-2 gap-4 font-ui">
           <div>
             <div className="mb-2 text-sm text-slate-300">{p1.name}</div>
@@ -323,10 +380,12 @@ export default function QuizPrototype() {
             <div className="flex flex-wrap gap-2">{[1,2,3].map((n) => <button key={n} className="btn text-white" style={{ background: "linear-gradient(90deg,#00A7D7,#2563EB)" }} onClick={() => awardTo("p2", n)}>+{n}</button>)}</div>
           </div>
         </div>
+
+        {/* Final scoring controls on last question */}
         {isFinalIndex && (
           <div className="card font-ui mt-6">
-            <div className="mb-2 text-sm text-slate-300">Final Award — Jeopardy (+bet / −bet)</div>
-            <div className="text-xs text-slate-400 mb-3">First-to-say wins: once one <em>Correct</em> is applied, the other player’s <em>Correct</em> is disabled.</div>
+            <div className="mb-2 text-sm text-slate-300">Τελικός — Απονέμετε πόντους βάσει πονταρίσματος</div>
+            <div className="text-xs text-slate-400 mb-3">Τα Χ2 δεν ισχύουν στον Τελικό. Προτείνεται ταυτόχρονη απάντηση.</div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <div className="text-sm text-slate-300">{p1.name}</div>
@@ -373,28 +432,8 @@ export default function QuizPrototype() {
             </div>
           </div>
         )}
-        <div className="mt-6 flex justify-center"><NavButtons /></div>
-      </StageCard>
-    );
-  }
 
-  // (kept for reference; not used in current flow)
-  function FinaleStage() {
-    return (
-      <StageCard>
-        <div className="mb-2 text-center text-sm uppercase tracking-wide text-slate-300 font-ui">Final Question — Place Your Bets</div>
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-          <WagerControl label={p1.name} value={wager.p1} onChange={(n) => setWager((w) => ({ ...w, p1: clamp(n, 0, 3) }))} grad="linear-gradient(90deg,#BA1ED3,#F11467)" />
-          <WagerControl label={p2.name} value={wager.p2} onChange={(n) => setWager((w) => ({ ...w, p2: clamp(n, 0, 3) }))} grad="linear-gradient(90deg,#00A7D7,#2563EB)" />
-        </div>
-        <div className="mt-6 rounded-2xl bg-slate-900/50 p-4">
-          <div className="mb-2 text-xs text-slate-400 font-ui">Final Question</div>
-          <div className="font-display text-lg font-semibold">{q.text}</div>
-        </div>
-        <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs text-slate-400 font-ui">Bets are points; no category multiplier applies.</div>
-          <button onClick={() => setStage(STAGES.QUESTION)} className="btn btn-accent">Start Final</button>
-        </div>
+        <div className="mt-6 flex justify-center"><NavButtons /></div>
       </StageCard>
     );
   }
@@ -416,6 +455,28 @@ export default function QuizPrototype() {
     );
   }
 
+  function X2Control({ label, side, available, armed, disabled, onArm, grad, isFinal }) {
+    return (
+      <div className="card font-ui">
+        <div className="mb-2 text-sm text-slate-300">{label}</div>
+        <div className="flex items-center gap-3">
+          <div className="pill text-white" style={{ background: grad }}>
+            {available ? "Χ2 διαθέσιμο" : (armed ? "Χ2 ενεργό" : "Χ2 χρησιμοποιήθηκε")}
+          </div>
+          <button
+            className="btn btn-neutral disabled:opacity-50"
+            onClick={onArm}
+            disabled={disabled}
+            title={isFinal ? "Δεν επιτρέπεται στον Τελικό" : (available ? "Ενεργοποίηση Χ2 για αυτόν τον γύρο" : "Δεν απομένει Χ2")}
+          >
+            Χρησιμοποίησε Χ2
+          </button>
+        </div>
+        <div className="mt-2 text-xs text-slate-400">Μπορέι να χρησιμοποιήθει μόνο μιά φορά.</div>
+      </div>
+    );
+  }
+
   function WagerControl({ label, value, onChange, grad }) {
     return (
       <div className="card font-ui">
@@ -425,7 +486,7 @@ export default function QuizPrototype() {
           <div className="pill text-white" style={{ background: grad }}>{value}</div>
           <button className="btn btn-neutral" onClick={() => onChange(value + 1)}>+</button>
         </div>
-        <div className="mt-2 text-xs text-slate-400">Bet 0–3 points</div>
+        <div className="mt-2 text-xs text-slate-400">Ποντάρισμα 0–3 πόντοι</div>
       </div>
     );
   }
@@ -444,9 +505,9 @@ export default function QuizPrototype() {
     if (typeof window === 'undefined') return;
     if (window.location.hash !== '#selftest') return;
     try {
-      const applyJeopardy = (score, bet, outcome) => outcome === 'correct' ? score + bet : score - bet;
-      console.assert(applyJeopardy(10, 3, 'correct') === 13, 'Jeopardy: +bet on correct');
-      console.assert(applyJeopardy(10, 2, 'wrong') === 8, 'Jeopardy: -bet on wrong');
+      const applyFinal = (score, bet, outcome) => outcome === 'correct' ? score + bet : score - bet;
+      console.assert(applyFinal(10, 3, 'correct') === 13, 'Final: +bet on correct');
+      console.assert(applyFinal(10, 2, 'wrong') === 8, 'Final: -bet on wrong');
       const streakBonus = (prev, same) => (((same ? prev + 1 : 1) >= 3) ? 1 : 0);
       console.assert(streakBonus(2, true) === 1 && streakBonus(1, true) === 0, 'Streak bonus from 3rd correct');
       console.log('%cSelf-tests passed', 'color: #10b981');
@@ -467,8 +528,8 @@ export default function QuizPrototype() {
         {stage !== STAGES.RESULTS && (<>
           <div className="mt-2 text-center text-lg font-semibold font-ui">Player Scores</div>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <PlayerPanel side="p1" player={p1} setPlayer={setP1} adjustScore={adjustScore} />
-            <PlayerPanel side="p2" player={p2} setPlayer={setP2} adjustScore={adjustScore} />
+            <PlayerPanel side="p1" player={p1} setPlayer={setP1} />
+            <PlayerPanel side="p2" player={p2} setPlayer={setP2} />
           </div>
         </>)}
 
@@ -498,7 +559,7 @@ function stageLabel(stage) {
 }
 
 // Hoisted to avoid remounting and input focus loss on each keystroke
-function PlayerPanel({ side, player, setPlayer, adjustScore }) {
+function PlayerPanel({ side, player, setPlayer }) {
   const badgeGrad = side === "p1" ? "linear-gradient(90deg,#BA1ED3,#F11467)" : "linear-gradient(90deg,#00A7D7,#2563EB)";
   return (
     <div className="card font-ui">
@@ -512,10 +573,6 @@ function PlayerPanel({ side, player, setPlayer, adjustScore }) {
         <div className="pill text-white" style={{ background: badgeGrad }}>{player.score}</div>
       </div>
       <div className="flex items-center justify-between text-sm">
-        <div className="flex items-center gap-2">
-          <button className="btn btn-neutral" onClick={() => adjustScore(side, -1)} aria-label="decrease score">−</button>
-          <button className="btn btn-neutral" onClick={() => adjustScore(side, +1)} aria-label="increase score">+</button>
-        </div>
         <div className="flex items-center gap-2">
           <span className="text-slate-300">Streak:</span>
           <span className="pill text-amber-200" style={{ background: "rgba(245, 158, 11, 0.25)" }}>{player.streak > 0 ? `🔥 +${player.streak}` : "—"}</span>
@@ -553,29 +610,37 @@ function HowToModal({ onClose, initialLang = 'en' }) {
                 <h3 className="font-display text-lg font-bold">Quick Start</h3>
                 <ul className="mt-2 list-disc pl-5 space-y-1">
                   <li>2 players on one device. Enter your names.</li>
-                  <li>Each round flows: <span className="pill bg-slate-700/60">Category</span> → <span className="pill bg-slate-700/60">Question</span> → <span className="pill bg-slate-700/60">Answer</span>. Final question includes a wager.</li>
-                  <li><span className="pill" style={{background:'var(--brand-accent)', color:'#fff'}}>House rule</span> Each player gets <strong>one spoken guess</strong> per question.</li>
+                  <li>Each round shows the <strong>Category (with its points)</strong>, then the <strong>Question</strong>, then the <strong>Answer</strong>. On the final question, each player wagers how many points they’ll play for.</li>
+                  <li><strong>Rule:</strong> Each player has <strong>one spoken guess</strong> per question.</li>
                 </ul>
               </section>
               <section>
-                <h3 className="font-display text-lg font-bold">Round Flow & Scoring</h3>
+                <h3 className="font-display text-lg font-bold">Flow & Scoring</h3>
                 <ul className="mt-2 list-disc pl-5 space-y-1">
-                  <li><strong>Question:</strong> Speak your one guess before the timer ends. The host can Pause/Resume.</li>
-                  <li><strong>Reveal:</strong> Tap <em>Reveal Answer</em>, then award the correct player with <em>+1/+2/+3</em>. Bonus ×2 (≈10%) doubles points on that question.</li>
-                  <li><strong>Streak bonus:</strong> Starting from the <em>3rd consecutive correct</em>, add a flat <strong>+1</strong> bonus (not multiplied).</li>
+                  <li><strong>Question:</strong> Make your single guess before the timer ends. <em>(You can disable the timer in settings.)</em></li>
+                  <li><strong>Reveal:</strong> Press <em>“Reveal Answer”</em> and award points to the <strong>fastest correct</strong> player using <strong>+1/+2/+3</strong>. If the first person was wrong but the second was right, <strong>the points go to the second</strong>.</li>
+                  <li><strong>Streak:</strong> Starting from the <em>3rd consecutive correct</em> answer, add an extra <strong>+1</strong>. <em>(Streak is not multiplied.)</em></li>
                 </ul>
               </section>
               <section>
-                <h3 className="font-display text-lg font-bold">Finale — Jeopardy Style</h3>
+                <h3 className="font-display text-lg font-bold">X2 Help</h3>
                 <ul className="mt-2 list-disc pl-5 space-y-1">
-                  <li><strong>Before</strong> the final question is shown, each player places a bet (0–3 points) on the Category screen.</li>
-                  <li><strong>Right = +bet</strong>, <strong>Wrong = −bet</strong>. First-to-say wins (only one <em>Correct</em> may be applied). No multipliers.</li>
-                  <li>If you want both players to answer independently, use the <em>write-down</em> variant; otherwise award based on who answered correctly per your house rule.</li>
+                  <li>Each player has <strong>one (1) X2</strong> per game.</li>
+                  <li>Activate it <strong>only on the Category screen</strong>, before the question/answer is shown.</li>
+                  <li>When you award <strong>+1/+2/+3</strong>, the system <strong>automatically doubles the base points</strong> for the player with X2 active on that question. <em>(X2 does not affect the streak +1.)</em></li>
+                </ul>
+              </section>
+              <section>
+                <h3 className="font-display text-lg font-bold">Final</h3>
+                <ul className="mt-2 list-disc pl-5 space-y-1">
+                  <li>Before the final question, each player <strong>wagers 0–3</strong> points.</li>
+                  <li><strong>Answer:</strong> Prefer simultaneous answers (or write them down). <strong>Right = +wager</strong>, <strong>Wrong = −wager</strong>.</li>
+                  <li><strong>X2 is not allowed</strong> in the Final.</li>
                 </ul>
               </section>
               <section>
                 <h3 className="font-display text-lg font-bold">Timer & Sharing</h3>
-                <p className="mt-2">15s per question by default. At the end, save a PNG share card for Instagram.</p>
+                <p className="mt-2"><strong>15s</strong> per question.</p>
               </section>
               <div className="howto-shadow" />
             </div>
@@ -585,29 +650,37 @@ function HowToModal({ onClose, initialLang = 'en' }) {
                 <h3 className="font-display text-lg font-bold">Γρήγορη εκκίνηση</h3>
                 <ul className="mt-2 list-disc pl-5 space-y-1">
                   <li>2 παίκτες στην ίδια συσκευή. Βάλτε τα ονόματά σας.</li>
-                  <li>Κάθε γύρος: <span className="pill bg-slate-700/60">Κατηγορία</span> → <span className="pill bg-slate-700/60">Ερώτηση</span> → <span className="pill bg-slate-700/60">Απάντηση</span>. Η τελευταία ερώτηση έχει στοίχημα.</li>
-                  <li><span className="pill" style={{background:'var(--brand-accent)', color:'#fff'}}>Κανόνας</span> Κάθε παίκτης έχει <strong>μία προφορική προσπάθεια</strong> ανά ερώτηση.</li>
+                  <li>Σε κάθε γύρο εμφανίζεται πρώτα η κατηγορία με τους αντίστοιχους πόντους, μετά η ερώτηση και μετά η απάντηση. Στην τελευταία ερώτηση κάθε παίκτης ποντάρει πόσους πόντους θα παίξει.</li>
+                  <li><strong>Κανόνας:</strong> Κάθε παίκτης έχει <strong>μία προφορική προσπάθεια</strong> ανά ερώτηση.</li>
                 </ul>
               </section>
               <section>
                 <h3 className="font-display text-lg font-bold">Ροή & Βαθμολογία</h3>
                 <ul className="mt-2 list-disc pl-5 space-y-1">
-                  <li><strong>Ερώτηση:</strong> Δώστε την μία προσπάθειά σας πριν τελειώσει ο χρόνος. Ο παρουσιαστής μπορεί να κάνει Παύση/Συνέχεια.</li>
-                  <li><strong>Αποκάλυψη:</strong> Πατάμε <em>Reveal Answer</em> και δίνουμε πόντους στον σωστό παίκτη με <em>+1/+2/+3</em>. Το Bonus ×2 (≈10%) διπλασιάζει τους πόντους της ερώτησης.</li>
-                  <li><strong>Streak:</strong> Από την <em>3η συνεχόμενη σωστή</em> απάντηση και μετά, δίνεται επιπλέον <strong>+1</strong> (δεν πολλαπλασιάζεται).</li>
+                  <li><strong>Ερώτηση:</strong> Δώστε τη μία προσπάθειά σας πριν τελειώσει ο χρόνος. <em>(Μπορείτε να απενεργοποιήσετε το χρονόμετρο από τις ρυθμίσεις.)</em></li>
+                  <li><strong>Αποκάλυψη:</strong> Πατήστε «Reveal Answer» και δώστε πόντους <strong>στον πιο γρήγορο που απάντησε σωστά</strong> με <strong>+1/+2/+3</strong>. <strong>Αν ο πρώτος που απάντησε δεν ήταν σωστός αλλά ο δεύτερος ήταν, τότε τους πόντους τους παίρνει ο δεύτερος.</strong></li>
+                  <li><strong>Streak:</strong> Από την <em>3η συνεχόμενη σωστή</em> απάντηση και μετά, προστίθεται <strong>+1</strong> επιπλέον.</li>
                 </ul>
               </section>
               <section>
-                <h3 className="font-display text-lg font-bold">Τελικός — Jeopardy</h3>
+                <h3 className="font-display text-lg font-bold">Βοήθεια Χ2</h3>
                 <ul className="mt-2 list-disc pl-5 space-y-1">
-                  <li><strong>Πριν</strong> εμφανιστεί η τελική ερώτηση, κάθε παίκτης ποντάρει (0–3) στην οθόνη Κατηγορίας.</li>
-                  <li><strong>Σωστό = +στοίχημα</strong>, <strong>Λάθος = −στοίχημα</strong>. Κερδίζει ο πιο γρήγορος (μία μόνο <em>Σωστό</em> επιλογή). Δεν ισχύουν πολλαπλασιαστές.</li>
-                  <li>Αν θέλετε να απαντήσουν και οι δύο ανεξάρτητα, χρησιμοποιήστε τη λύση <em>γράψε-την-απάντηση</em>.</li>
+                  <li>Κάθε παίκτης διαθέτει <strong>μία (1) Χ2</strong> ανά παιχνίδι.</li>
+                  <li>Η ενεργοποίηση γίνεται <strong>μόνο στην οθόνη Κατηγορίας</strong>, πριν εμφανιστεί η ερώτηση/αποκάλυψη.</li>
+                  <li>Όταν απονείμετε <strong>+1/+2/+3</strong>, το σύστημα <strong>διπλασιάζει αυτόματα τους βασικούς πόντους</strong> για τον παίκτη που έχει ενεργό το Χ2 σε αυτή την ερώτηση. <em>(Το Χ2 δεν επηρεάζει το streak +1.)</em></li>
+                </ul>
+              </section>
+              <section>
+                <h3 className="font-display text-lg font-bold">Τελικός</h3>
+                <ul className="mt-2 list-disc pl-5 space-y-1">
+                  <li>Πριν εμφανιστεί η τελική ερώτηση, κάθε παίκτης <strong>ποντάρει 0–3</strong> πόντους.</li>
+                  <li><strong>Απάντηση:</strong> Προτείνεται ταυτόχρονη (ή γραπτή). <strong>Σωστό = +στοίχημα</strong>, <strong>Λάθος = −στοίχημα</strong>.</li>
+                  <li><strong>Το Χ2 δεν επιτρέπεται</strong> στον Τελικό.</li>
                 </ul>
               </section>
               <section>
                 <h3 className="font-display text-lg font-bold">Χρόνος & Κοινοποίηση</h3>
-                <p className="mt-2">15s ανά ερώτηση. Στο τέλος, αποθηκεύστε την κάρτα αποτελεσμάτων (PNG) για Instagram.</p>
+                <p className="mt-2"><strong>15s</strong> ανά ερώτηση.</p>
               </section>
               <div className="howto-shadow" />
             </div>
