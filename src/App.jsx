@@ -517,15 +517,15 @@ function HowToModal({ onClose }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
-      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-2xl card font-ui">
-          <div className="flex items-center justify-between">
+    <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
+      <div className="fixed inset-0 bg-black/60" onClick={onClose} />
+      <div className="min-h-full flex items-start sm:items-center justify-center p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
+        <div className="w-full max-w-2xl card font-ui max-h-[85vh] overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="sticky top-0 -mx-6 -mt-6 px-6 pt-4 pb-3 bg-[rgba(17,24,39,0.85)] backdrop-blur-sm rounded-t-2xl flex items-center justify-between">
             <h2 className="font-display text-2xl font-extrabold">{lang === 'en' ? 'How to Play' : 'Πώς παίζεται'}</h2>
             <div className="flex items-center gap-2">
-              <button onClick={() => setLang('en')} className={`pill ${lang==='en'?'btn-neutral':''}`}>EN</button>
-              <button onClick={() => setLang('el')} className={`pill ${lang==='el'?'btn-neutral':''}`}>ΕΛ</button>
+              <button onClick={() => setLang('en')} className={`pill bg-white text-black ${lang==='en' ? 'ring-2 ring-[var(--brand-accent)]' : ''}`}>EN</button>
+              <button onClick={() => setLang('el')} className={`pill bg-white text-black ${lang==='el' ? 'ring-2 ring-[var(--brand-accent)]' : ''}`}>ΕΛ</button>
               <button onClick={onClose} className="btn btn-neutral">Close ✕</button>
             </div>
           </div>
