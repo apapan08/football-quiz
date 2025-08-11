@@ -5,11 +5,15 @@ import { questions as DATA_QUESTIONS } from "./data/questions";
  * Football Quiz — single-file React + Tailwind (brand-font edition)
  *
  * This version:
- * - Loads 9 questions (with media) from src/data/questions.js
+ * - Loads questions (with media) from src/data/questions.js
  * - Renders image / audio / video per question
- * - Uses q.points (not q.basePoints) and q.prompt (not q.text)
- * - Keeps X2 help & final wager
- * - Timer removed completely
+ * - Uses q.points and q.prompt
+ * - X2 help & final wager kept
+ * - Timer removed
+ * - AnswerStage simplified to three buttons:
+ *     [Player 1 answered first] • [Draw/No answer] • [Player 2 answered first]
+ *   → awards the question's category points (×2 if X2 active), plus streak +1 from 3rd correct
+ * - Manual score adjust (±1) next to each player's score
  */
 
 // ——— Brand font wiring ———
@@ -196,8 +200,8 @@ export default function QuizPrototype() {
     return player.armedIndex === index; // active for this question only
   }
 
+  // Award base uses category points × (X2 if active), plus streak logic
   function awardTo(side, base = 1, { useMultiplier = true } = {}) {
-    // Multiplier = points × (x2 active? 2 : 1). Streak +1 applied after, not multiplied.
     const baseMult =
       (q.points || 1) *
       (useMultiplier ? (isX2ActiveFor(side) ? 2 : 1) : 1);
@@ -233,11 +237,11 @@ export default function QuizPrototype() {
   }
 
   function noAnswer() {
-  // Break any ongoing streaks and clear last winner
-  setLastCorrect(null);
-  setP1((s) => ({ ...s, streak: 0 }));
-  setP2((s) => ({ ...s, streak: 0 }));
-}
+    // Break any ongoing streaks and clear last winner
+    setLastCorrect(null);
+    setP1((s) => ({ ...s, streak: 0 }));
+    setP2((s) => ({ ...s, streak: 0 }));
+  }
 
   function finalizeOutcome(side, outcome) {
     const bet = side === "p1" ? wager.p1 : wager.p2;
@@ -341,30 +345,29 @@ export default function QuizPrototype() {
   }
 
   // ——— UI subcomponents ———
- function Header() {
-  return (
-    <div className="px-4 pt-6 pb-2 font-ui">
-      <div className="flex items-center justify-center gap-3">
-        {/* replace this: <span className="text-3xl">🧠⚽</span> */}
-        <img src="/logo.png" alt="Brand logo" className="h-7 w-auto drop-shadow" />
-        <span
-          className="rounded-full px-3 py-1 text-sm font-semibold shadow"
-          style={{ background: THEME.accent }}
-        >
-          Q {index + 1} of {QUESTIONS.length}
-        </span>
+  function Header() {
+    return (
+      <div className="px-4 pt-6 pb-2 font-ui">
+        <div className="flex items-center justify-center gap-3">
+          {/* replace this: <span className="text-3xl">🧠⚽</span> */}
+          <img src="/logo.png" alt="Brand logo" className="h-7 w-auto drop-shadow" />
+          <span
+            className="rounded-full px-3 py-1 text-sm font-semibold shadow"
+            style={{ background: THEME.accent }}
+          >
+            Q {index + 1} of {QUESTIONS.length}
+          </span>
+        </div>
+        <div className="mt-2 text-center text-xs uppercase tracking-wide text-slate-300">
+          {stageLabel(stage)}
+        </div>
+        <div className="mt-2 flex items-center justify-center gap-2">
+          <button onClick={() => { setHowToLang('en'); setShowHowTo(true); }} className="pill bg-white text-black">🇬🇧 Instructions</button>
+          <button onClick={() => { setHowToLang('el'); setShowHowTo(true); }} className="pill bg-white text-black">🇬🇷 Οδηγίες</button>
+        </div>
       </div>
-      <div className="mt-2 text-center text-xs uppercase tracking-wide text-slate-300">
-        {stageLabel(stage)}
-      </div>
-      <div className="mt-2 flex items-center justify-center gap-2">
-        <button onClick={() => { setHowToLang('en'); setShowHowTo(true); }} className="pill bg-white text-black">🇬🇧 Instructions</button>
-        <button onClick={() => { setHowToLang('el'); setShowHowTo(true); }} className="pill bg-white text-black">🇬🇷 Οδηγίες</button>
-      </div>
-    </div>
-  );
-}
-
+    );
+  }
 
   function StageCard({ children }) {
     return <div className="card">{children}</div>;
@@ -506,143 +509,129 @@ export default function QuizPrototype() {
     );
   }
 
-function AnswerStage() {
-  // Clears streaks if nobody got it right
-  function handleNoAnswer() {
-    setLastCorrect(null);
-    setP1((s) => ({ ...s, streak: 0 }));
-    setP2((s) => ({ ...s, streak: 0 }));
-  }
+  function AnswerStage() {
+    // Clears streaks if nobody got it right
+    function handleNoAnswer() {
+      setLastCorrect(null);
+      setP1((s) => ({ ...s, streak: 0 }));
+      setP2((s) => ({ ...s, streak: 0 }));
+    }
 
-  return (
-    <StageCard>
-      <div className="text-center">
-        <div className="font-display text-3xl font-extrabold">
-          {q.answer}
-        </div>
-        {q.fact && (
-          <div className="mt-2 font-ui text-sm text-slate-300">
-            ℹ️ {q.fact}
+    return (
+      <StageCard>
+        <div className="text-center">
+          <div className="font-display text-3xl font-extrabold">
+            {q.answer}
           </div>
-        )}
-      </div>
+          {q.fact && (
+            <div className="mt-2 font-ui text-sm text-slate-300">
+              ℹ️ {q.fact}
+            </div>
+          )}
+        </div>
 
-      {/* Per-player X2 status reminder */}
-      <div className="mt-3 text-center text-xs text-slate-400 font-ui">
-        {isX2ActiveFor("p1") && <span className="mr-2">({p1.name}: ×2 ενεργό)</span>}
-        {isX2ActiveFor("p2") && <span>({p2.name}: ×2 ενεργό)</span>}
-      </div>
+        {/* Per-player X2 status reminder */}
+        <div className="mt-3 text-center text-xs text-slate-400 font-ui">
+          {isX2ActiveFor("p1") && <span className="mr-2">({p1.name}: ×2 ενεργό)</span>}
+          {isX2ActiveFor("p2") && <span>({p2.name}: ×2 ενεργό)</span>}
+        </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4 font-ui">
-        <div>
-          <div className="mb-2 text-sm text-slate-300">{p1.name}</div>
-          <div className="flex flex-wrap gap-2">
-            {[1, 2, 3].map((n) => (
+        {/* Simplified awarding controls (hide on Final) */}
+        {!isFinalIndex && (
+          <div className="mt-6 flex flex-col items-center gap-3 font-ui">
+            <div className="flex flex-wrap justify-center gap-2">
               <button
-                key={n}
                 className="btn text-white"
                 style={{ background: "linear-gradient(90deg,#BA1ED3,#F11467)" }}
-                onClick={() => awardTo("p1", n)}
+                onClick={() => awardTo("p1", 1)}
+                title={`${p1.name} answered first`}
               >
-                +{n}
+                {p1.name} answered first
               </button>
-            ))}
-          </div>
-        </div>
-        <div>
-          <div className="mb-2 text-sm text-slate-300">{p2.name}</div>
-          <div className="flex flex-wrap gap-2">
-            {[1, 2, 3].map((n) => (
               <button
-                key={n}
+                className="btn btn-neutral"
+                onClick={handleNoAnswer}
+                title="Draw / No answer — resets streaks"
+              >
+                Draw / No answer
+              </button>
+              <button
                 className="btn text-white"
                 style={{ background: "linear-gradient(90deg,#00A7D7,#2563EB)" }}
-                onClick={() => awardTo("p2", n)}
+                onClick={() => awardTo("p2", 1)}
+                title={`${p2.name} answered first`}
               >
-                +{n}
+                {p2.name} answered first
               </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* No-answer control to break streaks */}
-      <div className="mt-4 flex flex-col items-center gap-1">
-        <button
-          onClick={handleNoAnswer}
-          className="btn btn-neutral px-3 py-1 text-xs"
-          title="Reset streaks if nobody answered correctly"
-        >
-          No answer
-        </button>
-        <div className="text-xs text-slate-400">
-          Press if nobody answered correctly — resets both streaks.
-        </div>
-      </div>
-
-      {/* Final scoring controls on last question */}
-      {isFinalIndex && (
-        <div className="card font-ui mt-6">
-          <div className="mb-2 text-sm text-slate-300">
-            Τελικός — Απονέμετε πόντους βάσει πονταρίσματος
-          </div>
-          <div className="text-xs text-slate-400 mb-3">
-            Τα Χ2 δεν ισχύουν στον Τελικό. Προτείνεται ταυτόχρονη απάντηση.
-          </div>
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <div className="text-sm text-slate-300">{p1.name}</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  disabled={finalResolved.p1 || wager.p1 === 0 || (finalFirst && finalFirst !== "p1")}
-                  onClick={() => finalizeOutcome("p1", "correct")}
-                  className="btn text-white disabled:opacity-50"
-                  style={{ background: "linear-gradient(90deg,#BA1ED3,#F11467)" }}
-                >
-                  Correct +{wager.p1}
-                </button>
-                <button
-                  disabled={finalResolved.p1 || wager.p1 === 0}
-                  onClick={() => finalizeOutcome("p1", "wrong")}
-                  className="btn btn-neutral disabled:opacity-50"
-                >
-                  Wrong −{wager.p1}
-                </button>
-                {finalResolved.p1 && <span className="text-xs text-emerald-300">Resolved ✔</span>}
-              </div>
             </div>
-            <div className="space-y-2">
-              <div className="text-sm text-slate-300">{p2.name}</div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  disabled={finalResolved.p2 || wager.p2 === 0 || (finalFirst && finalFirst !== "p2")}
-                  onClick={() => finalizeOutcome("p2", "correct")}
-                  className="btn text-white disabled:opacity-50"
-                  style={{ background: "linear-gradient(90deg,#00A7D7,#2563EB)" }}
-                >
-                  Correct +{wager.p2}
-                </button>
-                <button
-                  disabled={finalResolved.p2 || wager.p2 === 0}
-                  onClick={() => finalizeOutcome("p2", "wrong")}
-                  className="btn btn-neutral disabled:opacity-50"
-                >
-                  Wrong −{wager.p2}
-                </button>
-                {finalResolved.p2 && <span className="text-xs text-emerald-300">Resolved ✔</span>}
+            <div className="text-xs text-slate-400">
+              Awards category points (x{q.points || 1}) to the fastest correct player. X2 doubles only the base category points; streak +1 starts from the 3rd consecutive correct.
+            </div>
+          </div>
+        )}
+
+        {/* Final scoring controls on last question */}
+        {isFinalIndex && (
+          <div className="card font-ui mt-6">
+            <div className="mb-2 text-sm text-slate-300">
+              Τελικός — Απονέμετε πόντους βάσει πονταρίσματος
+            </div>
+            <div className="text-xs text-slate-400 mb-3">
+              Τα Χ2 δεν ισχύουν στον Τελικό. Προτείνεται ταυτόχρονη απάντηση.
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <div className="text-sm text-slate-300">{p1.name}</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    disabled={finalResolved.p1 || wager.p1 === 0 || (finalFirst && finalFirst !== "p1")}
+                    onClick={() => finalizeOutcome("p1", "correct")}
+                    className="btn text-white disabled:opacity-50"
+                    style={{ background: "linear-gradient(90deg,#BA1ED3,#F11467)" }}
+                  >
+                    Correct +{wager.p1}
+                  </button>
+                  <button
+                    disabled={finalResolved.p1 || wager.p1 === 0}
+                    onClick={() => finalizeOutcome("p1", "wrong")}
+                    className="btn btn-neutral disabled:opacity-50"
+                  >
+                    Wrong −{wager.p1}
+                  </button>
+                  {finalResolved.p1 && <span className="text-xs text-emerald-300">Resolved ✔</span>}
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm text-slate-300">{p2.name}</div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    disabled={finalResolved.p2 || wager.p2 === 0 || (finalFirst && finalFirst !== "p2")}
+                    onClick={() => finalizeOutcome("p2", "correct")}
+                    className="btn text-white disabled:opacity-50"
+                    style={{ background: "linear-gradient(90deg,#00A7D7,#2563EB)" }}
+                  >
+                    Correct +{wager.p2}
+                  </button>
+                  <button
+                    disabled={finalResolved.p2 || wager.p2 === 0}
+                    onClick={() => finalizeOutcome("p2", "wrong")}
+                    className="btn btn-neutral disabled:opacity-50"
+                  >
+                    Wrong −{wager.p2}
+                  </button>
+                  {finalResolved.p2 && <span className="text-xs text-emerald-300">Resolved ✔</span>}
+                </div>
               </div>
             </div>
           </div>
+        )}
+
+        <div className="mt-6 flex justify-center">
+          <NavButtons />
         </div>
-      )}
-
-      <div className="mt-6 flex justify-center">
-        <NavButtons />
-      </div>
-    </StageCard>
-  );
-}
-
+      </StageCard>
+    );
+  }
 
   function ResultsStage() {
     const winner =
@@ -892,8 +881,26 @@ function PlayerPanel({ side, player, setPlayer }) {
           onChange={(e) => setPlayer((s) => ({ ...s, name: e.target.value }))}
           aria-label={`${side} name`}
         />
-        <div className="pill text-white" style={{ background: badgeGrad }}>
-          {player.score}
+        <div className="flex items-center gap-2">
+          <button
+            className="btn btn-neutral px-2 py-1 text-xs"
+            onClick={() => setPlayer((s) => ({ ...s, score: s.score - 1 }))}
+            title="Decrease score by 1"
+            aria-label="Decrease score"
+          >
+            −
+          </button>
+          <div className="pill text-white min-w-[3ch] text-center" style={{ background: badgeGrad }}>
+            {player.score}
+          </div>
+          <button
+            className="btn btn-neutral px-2 py-1 text-xs"
+            onClick={() => setPlayer((s) => ({ ...s, score: s.score + 1 }))}
+            title="Increase score by 1"
+            aria-label="Increase score"
+          >
+            +
+          </button>
         </div>
       </div>
       <div className="flex items-center justify-between text-sm">
@@ -968,7 +975,7 @@ function HowToModal({ onClose, initialLang = "en" }) {
                 <ul className="mt-2 list-disc pl-5 space-y-1">
                   <li><strong>Question:</strong> Make your single guess.</li>
                   <li>
-                    <strong>Reveal:</strong> Press <em>“Reveal Answer”</em> and award points to the <strong>fastest correct</strong> player using <strong>+1/+2/+3</strong>. If the first person was wrong but the second was right, <strong>the points go to the second</strong>.
+                    <strong>Reveal:</strong> Press <em>“Reveal Answer”</em> and then choose who <strong>answered first correctly</strong> (or <em>Draw/No answer</em>). The fastest correct player receives the <strong>category points</strong> (×{`{q.points||1}`}). If the first was wrong but the second was right, <strong>the points go to the second</strong>.
                   </li>
                   <li>
                     <strong>Streak:</strong> Starting from the <em>3rd consecutive correct</em> answer, add an extra <strong>+1</strong>. <em>(Streak is not multiplied.)</em>
@@ -980,7 +987,7 @@ function HowToModal({ onClose, initialLang = "en" }) {
                 <ul className="mt-2 list-disc pl-5 space-y-1">
                   <li>Each player has <strong>one (1) X2</strong> per game.</li>
                   <li>Activate it <strong>only on the Category screen</strong>, before the question/answer is shown.</li>
-                  <li>When you award <strong>+1/+2/+3</strong>, the system <strong>automatically doubles the base points</strong> for the player with X2 active on that question. <em>(X2 does not affect the streak +1.)</em></li>
+                  <li>When you award the round (choose who answered first), the system <strong>automatically doubles the category points</strong> for the player with X2 active. <em>(X2 does not affect the streak +1.)</em></li>
                 </ul>
               </section>
               <section>
@@ -1010,7 +1017,7 @@ function HowToModal({ onClose, initialLang = "en" }) {
                 <ul className="mt-2 list-disc pl-5 space-y-1">
                   <li><strong>Ερώτηση:</strong> Δώστε τη μία προσπάθειά σας.</li>
                   <li>
-                    <strong>Αποκάλυψη:</strong> Πατήστε «Reveal Answer» και δώστε πόντους <strong>στον πιο γρήγορο που απάντησε σωστά</strong> με <strong>+1/+2/+3</strong>. <strong>Αν ο πρώτος που απάντησε δεν ήταν σωστός αλλά ο δεύτερος ήταν, τότε τους πόντους τους παίρνει ο δεύτερος.</strong>
+                    <strong>Αποκάλυψη:</strong> Πατήστε «Reveal Answer» και μετά επιλέξτε ποιος <strong>απάντησε πρώτος σωστά</strong> (ή <em>Ισοπαλία/Καμία απάντηση</em>). Ο πιο γρήγορος σωστός παίκτης παίρνει τους <strong>πόντους της κατηγορίας</strong>. <strong>Αν ο πρώτος ήταν λάθος αλλά ο δεύτερος σωστός, τους πόντους τους παίρνει ο δεύτερος.</strong>
                   </li>
                   <li><strong>Streak:</strong> Από την <em>3η συνεχόμενη σωστή</em> απάντηση και μετά, προστίθεται <strong>+1</strong> επιπλέον.</li>
                 </ul>
@@ -1020,7 +1027,7 @@ function HowToModal({ onClose, initialLang = "en" }) {
                 <ul className="mt-2 list-disc pl-5 space-y-1">
                   <li>Κάθε παίκτης διαθέτει <strong>μία (1) Χ2</strong> ανά παιχνίδι.</li>
                   <li>Η ενεργοποίηση γίνεται <strong>μόνο στην οθόνη Κατηγορίας</strong>, πριν εμφανιστεί η ερώτηση/αποκάλυψη.</li>
-                  <li>Όταν απονείμετε <strong>+1/+2/+3</strong>, το σύστημα <strong>διπλασιάζει αυτόματα τους βασικούς πόντους</strong> για τον παίκτη που έχει ενεργό το Χ2 σε αυτή την ερώτηση. <em>(Το Χ2 δεν επηρεάζει το streak +1.)</em></li>
+                  <li>Όταν απονείμετε τον γύρο (επιλογή ποιος απάντησε πρώτος), το σύστημα <strong>διπλασιάζει αυτόματα τους πόντους κατηγορίας</strong> για τον παίκτη με ενεργό Χ2. <em>(Το Χ2 δεν επηρεάζει το streak +1.)</em></li>
                 </ul>
               </section>
               <section>
