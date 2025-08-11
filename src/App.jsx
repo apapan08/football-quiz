@@ -232,6 +232,13 @@ export default function QuizPrototype() {
     }
   }
 
+  function noAnswer() {
+  // Break any ongoing streaks and clear last winner
+  setLastCorrect(null);
+  setP1((s) => ({ ...s, streak: 0 }));
+  setP2((s) => ({ ...s, streak: 0 }));
+}
+
   function finalizeOutcome(side, outcome) {
     const bet = side === "p1" ? wager.p1 : wager.p2;
     if (finalResolved[side] || bet <= 0) return;
@@ -499,143 +506,143 @@ export default function QuizPrototype() {
     );
   }
 
-  function AnswerStage() {
-    return (
-      <StageCard>
-        <div className="text-center">
-          <div className="font-display text-3xl font-extrabold">
-            {q.answer}
-          </div>
-          {q.fact && (
-            <div className="mt-2 font-ui text-sm text-slate-300">
-              ℹ️ {q.fact}
-            </div>
-          )}
-        </div>
+function AnswerStage() {
+  // Clears streaks if nobody got it right
+  function handleNoAnswer() {
+    setLastCorrect(null);
+    setP1((s) => ({ ...s, streak: 0 }));
+    setP2((s) => ({ ...s, streak: 0 }));
+  }
 
-        {/* Per-player X2 status reminder */}
-        <div className="mt-3 text-center text-xs text-slate-400 font-ui">
-          {isX2ActiveFor("p1") && (
-            <span className="mr-2">({p1.name}: ×2 ενεργό)</span>
-          )}
-          {isX2ActiveFor("p2") && <span>({p2.name}: ×2 ενεργό)</span>}
+  return (
+    <StageCard>
+      <div className="text-center">
+        <div className="font-display text-3xl font-extrabold">
+          {q.answer}
         </div>
-
-        <div className="mt-6 grid grid-cols-2 gap-4 font-ui">
-          <div>
-            <div className="mb-2 text-sm text-slate-300">{p1.name}</div>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3].map((n) => (
-                <button
-                  key={n}
-                  className="btn text-white"
-                  style={{
-                    background: "linear-gradient(90deg,#BA1ED3,#F11467)",
-                  }}
-                  onClick={() => awardTo("p1", n)}
-                >
-                  +{n}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <div className="mb-2 text-sm text-slate-300">{p2.name}</div>
-            <div className="flex flex-wrap gap-2">
-              {[1, 2, 3].map((n) => (
-                <button
-                  key={n}
-                  className="btn text-white"
-                  style={{
-                    background: "linear-gradient(90deg,#00A7D7,#2563EB)",
-                  }}
-                  onClick={() => awardTo("p2", n)}
-                >
-                  +{n}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Final scoring controls on last question */}
-        {isFinalIndex && (
-          <div className="card font-ui mt-6">
-            <div className="mb-2 text-sm text-slate-300">
-              Τελικός — Απονέμετε πόντους βάσει πονταρίσματος
-            </div>
-            <div className="text-xs text-slate-400 mb-3">
-              Τα Χ2 δεν ισχύουν στον Τελικό. Προτείνεται ταυτόχρονη απάντηση.
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <div className="text-sm text-slate-300">{p1.name}</div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    disabled={
-                      finalResolved.p1 ||
-                      wager.p1 === 0 ||
-                      (finalFirst && finalFirst !== "p1")
-                    }
-                    onClick={() => finalizeOutcome("p1", "correct")}
-                    className="btn text-white disabled:opacity-50"
-                    style={{
-                      background: "linear-gradient(90deg,#BA1ED3,#F11467)",
-                    }}
-                  >
-                    Correct +{wager.p1}
-                  </button>
-                  <button
-                    disabled={finalResolved.p1 || wager.p1 === 0}
-                    onClick={() => finalizeOutcome("p1", "wrong")}
-                    className="btn btn-neutral disabled:opacity-50"
-                  >
-                    Wrong −{wager.p1}
-                  </button>
-                  {finalResolved.p1 && (
-                    <span className="text-xs text-emerald-300">Resolved ✔</span>
-                  )}
-                </div>
-              </div>
-              <div className="space-y-2">
-                <div className="text-sm text-slate-300">{p2.name}</div>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    disabled={
-                      finalResolved.p2 ||
-                      wager.p2 === 0 ||
-                      (finalFirst && finalFirst !== "p2")
-                    }
-                    onClick={() => finalizeOutcome("p2", "correct")}
-                    className="btn text-white disabled:opacity-50"
-                    style={{
-                      background: "linear-gradient(90deg,#00A7D7,#2563EB)",
-                    }}
-                  >
-                    Correct +{wager.p2}
-                  </button>
-                  <button
-                    disabled={finalResolved.p2 || wager.p2 === 0}
-                    onClick={() => finalizeOutcome("p2", "wrong")}
-                    className="btn btn-neutral disabled:opacity-50"
-                  >
-                    Wrong −{wager.p2}
-                  </button>
-                  {finalResolved.p2 && (
-                    <span className="text-xs text-emerald-300">Resolved ✔</span>
-                  )}
-                </div>
-              </div>
-            </div>
+        {q.fact && (
+          <div className="mt-2 font-ui text-sm text-slate-300">
+            ℹ️ {q.fact}
           </div>
         )}
+      </div>
 
-        <div className="mt-6 flex justify-center">
-          <NavButtons />
+      {/* Per-player X2 status reminder */}
+      <div className="mt-3 text-center text-xs text-slate-400 font-ui">
+        {isX2ActiveFor("p1") && <span className="mr-2">({p1.name}: ×2 ενεργό)</span>}
+        {isX2ActiveFor("p2") && <span>({p2.name}: ×2 ενεργό)</span>}
+      </div>
+
+      <div className="mt-6 grid grid-cols-2 gap-4 font-ui">
+        <div>
+          <div className="mb-2 text-sm text-slate-300">{p1.name}</div>
+          <div className="flex flex-wrap gap-2">
+            {[1, 2, 3].map((n) => (
+              <button
+                key={n}
+                className="btn text-white"
+                style={{ background: "linear-gradient(90deg,#BA1ED3,#F11467)" }}
+                onClick={() => awardTo("p1", n)}
+              >
+                +{n}
+              </button>
+            ))}
+          </div>
         </div>
-      </StageCard>
-    );
-  }
+        <div>
+          <div className="mb-2 text-sm text-slate-300">{p2.name}</div>
+          <div className="flex flex-wrap gap-2">
+            {[1, 2, 3].map((n) => (
+              <button
+                key={n}
+                className="btn text-white"
+                style={{ background: "linear-gradient(90deg,#00A7D7,#2563EB)" }}
+                onClick={() => awardTo("p2", n)}
+              >
+                +{n}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* No-answer control to break streaks */}
+      <div className="mt-4 flex flex-col items-center gap-1">
+        <button
+          onClick={handleNoAnswer}
+          className="btn btn-neutral px-3 py-1 text-xs"
+          title="Reset streaks if nobody answered correctly"
+        >
+          No answer
+        </button>
+        <div className="text-xs text-slate-400">
+          Press if nobody answered correctly — resets both streaks.
+        </div>
+      </div>
+
+      {/* Final scoring controls on last question */}
+      {isFinalIndex && (
+        <div className="card font-ui mt-6">
+          <div className="mb-2 text-sm text-slate-300">
+            Τελικός — Απονέμετε πόντους βάσει πονταρίσματος
+          </div>
+          <div className="text-xs text-slate-400 mb-3">
+            Τα Χ2 δεν ισχύουν στον Τελικό. Προτείνεται ταυτόχρονη απάντηση.
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <div className="text-sm text-slate-300">{p1.name}</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  disabled={finalResolved.p1 || wager.p1 === 0 || (finalFirst && finalFirst !== "p1")}
+                  onClick={() => finalizeOutcome("p1", "correct")}
+                  className="btn text-white disabled:opacity-50"
+                  style={{ background: "linear-gradient(90deg,#BA1ED3,#F11467)" }}
+                >
+                  Correct +{wager.p1}
+                </button>
+                <button
+                  disabled={finalResolved.p1 || wager.p1 === 0}
+                  onClick={() => finalizeOutcome("p1", "wrong")}
+                  className="btn btn-neutral disabled:opacity-50"
+                >
+                  Wrong −{wager.p1}
+                </button>
+                {finalResolved.p1 && <span className="text-xs text-emerald-300">Resolved ✔</span>}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="text-sm text-slate-300">{p2.name}</div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  disabled={finalResolved.p2 || wager.p2 === 0 || (finalFirst && finalFirst !== "p2")}
+                  onClick={() => finalizeOutcome("p2", "correct")}
+                  className="btn text-white disabled:opacity-50"
+                  style={{ background: "linear-gradient(90deg,#00A7D7,#2563EB)" }}
+                >
+                  Correct +{wager.p2}
+                </button>
+                <button
+                  disabled={finalResolved.p2 || wager.p2 === 0}
+                  onClick={() => finalizeOutcome("p2", "wrong")}
+                  className="btn btn-neutral disabled:opacity-50"
+                >
+                  Wrong −{wager.p2}
+                </button>
+                {finalResolved.p2 && <span className="text-xs text-emerald-300">Resolved ✔</span>}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="mt-6 flex justify-center">
+        <NavButtons />
+      </div>
+    </StageCard>
+  );
+}
+
 
   function ResultsStage() {
     const winner =
