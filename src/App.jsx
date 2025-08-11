@@ -6,8 +6,10 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
  * What changed vs previous draft
  * - Injects your fonts via <link> (edit FONT_LINK_HREF and FONT_FAMILIES below)
  * - Uses utility classes `.font-display` for big headings and `.font-ui` for UI
- * - Colors tweaked to your navy → blue gradient with hot‑pink accent
+ * - Colors tweaked to your navy → blue gradient with hot-pink accent
  * - Share-card exporter waits for fonts to load for accurate PNG text
+ * - HowTo modal now: same header/body color, reliable scrolling (iOS-friendly),
+ *   and a subtle bottom fade to hint scrollability.
  *
  * Drop this into a Tailwind React app (Vite/CRA). No extra deps.
  */
@@ -67,7 +69,14 @@ export default function QuizPrototype() {
     }
     styleEl = document.createElement("style");
     styleEl.innerHTML = `
-      :root { --brand-grad-from: ${THEME.gradientFrom}; --brand-grad-to: ${THEME.gradientTo}; --brand-accent: ${THEME.accent}; --brand-card: ${THEME.card}; --brand-border: ${THEME.border}; }
+      :root { 
+        --brand-grad-from: ${THEME.gradientFrom}; 
+        --brand-grad-to: ${THEME.gradientTo}; 
+        --brand-accent: ${THEME.accent}; 
+        --brand-card: ${THEME.card}; 
+        --brand-border: ${THEME.border};
+        --howto-bg: rgba(15,23,42,0.95); /* matches header + body of HowTo modal */
+      }
       .font-display { font-family: ${FONT_FAMILIES.display}; }
       .font-ui { font-family: ${FONT_FAMILIES.ui}; }
       .font-mono { font-family: ${FONT_FAMILIES.mono}; }
@@ -78,6 +87,12 @@ export default function QuizPrototype() {
       .btn-neutral:hover { background: rgba(148,163,184,0.25); }
       .card { background: var(--brand-card); border:1px solid var(--brand-border); border-radius: 1.5rem; padding:1.5rem; box-shadow: 0 10px 24px rgba(0,0,0,.35); }
       .pill { border-radius: 999px; padding: .25rem .6rem; font-weight: 700; }
+
+      /* — HowTo modal helpers — */
+      .scroll-area { overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
+      .scroll-area::-webkit-scrollbar { width:10px; }
+      .scroll-area::-webkit-scrollbar-thumb { background:rgba(255,255,255,0.18); border-radius:999px; }
+      .howto-shadow { position: sticky; bottom: 0; height: 24px; background: linear-gradient(to top, var(--howto-bg), transparent); pointer-events: none; }
     `;
     document.head.appendChild(styleEl);
     return () => { if (linkEl) document.head.removeChild(linkEl); if (styleEl) document.head.removeChild(styleEl); };
@@ -107,6 +122,7 @@ export default function QuizPrototype() {
   const [timeLeft, setTimeLeft] = useState(DEFAULT_TIMER_SECONDS);
   const timerRef = useRef(null);
   const [showHowTo, setShowHowTo] = useState(false);
+  const [howToLang, setHowToLang] = useState('en');
 
   useEffect(() => {
     if (stage !== STAGES.CATEGORY) return;
@@ -226,8 +242,9 @@ export default function QuizPrototype() {
         <div className="mt-2 text-center text-xs uppercase tracking-wide text-slate-300">
           {stageLabel(stage)}
         </div>
-        <div className="mt-2 flex items-center justify-center">
-          <button onClick={() => setShowHowTo(true)} className="btn btn-neutral">How to Play</button>
+        <div className="mt-2 flex items-center justify-center gap-2">
+          <button onClick={() => { setHowToLang('en'); setShowHowTo(true); }} className="pill bg-white text-black">🇬🇧 Instructions</button>
+          <button onClick={() => { setHowToLang('el'); setShowHowTo(true); }} className="pill bg-white text-black">🇬🇷 Οδηγίες</button>
         </div>
       </div>
     );
@@ -262,7 +279,7 @@ export default function QuizPrototype() {
                 grad="linear-gradient(90deg,#00A7D7,#2563EB)"
               />
             </div>
-            <div className="mt-2 text-center text-xs text-slate-400">Jeopardy: Right = +bet; Wrong = −bet. First‑to‑say wins (only one Correct can be applied).</div>
+            <div className="mt-2 text-center text-xs text-slate-400">Jeopardy: Right = +bet; Wrong = −bet. First-to-say wins (only one Correct can be applied).</div>
           </div>
         )}
         <div className="mt-6 flex justify-center gap-3"><NavButtons /></div>
@@ -309,7 +326,7 @@ export default function QuizPrototype() {
         {isFinalIndex && (
           <div className="card font-ui mt-6">
             <div className="mb-2 text-sm text-slate-300">Final Award — Jeopardy (+bet / −bet)</div>
-            <div className="text-xs text-slate-400 mb-3">First‑to‑say wins: once one <em>Correct</em> is applied, the other player’s <em>Correct</em> is disabled.</div>
+            <div className="text-xs text-slate-400 mb-3">First-to-say wins: once one <em>Correct</em> is applied, the other player’s <em>Correct</em> is disabled.</div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <div className="text-sm text-slate-300">{p1.name}</div>
@@ -442,7 +459,7 @@ export default function QuizPrototype() {
     <div className="min-h-screen w-full flex justify-center items-start p-4" style={{ background: `linear-gradient(180deg, ${THEME.gradientFrom}, ${THEME.gradientTo})` }}>
       <div className="w-full max-w-4xl space-y-4 text-slate-100">
         <Header />
-        {showHowTo && <HowToModal onClose={() => setShowHowTo(false)} />}
+        {showHowTo && <HowToModal initialLang={howToLang} onClose={() => setShowHowTo(false)} />}
         {stage === STAGES.CATEGORY && <CategoryStage />}
         {stage === STAGES.QUESTION && <QuestionStage />}
         {stage === STAGES.ANSWER && <AnswerStage />}
@@ -509,28 +526,29 @@ function PlayerPanel({ side, player, setPlayer, adjustScore }) {
   );
 }
 
-function HowToModal({ onClose }) {
-  const [lang, setLang] = useState('en');
+function HowToModal({ onClose, initialLang = 'en' }) {
+  const [lang, setLang] = useState(initialLang);
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+  useEffect(() => { setLang(initialLang); }, [initialLang]);
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto" role="dialog" aria-modal="true">
       <div className="fixed inset-0 bg-black/60" onClick={onClose} />
       <div className="min-h-full flex items-start sm:items-center justify-center p-4 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
-        <div className="w-full max-w-2xl card font-ui max-h-[85vh] overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div className="sticky top-0 -mx-6 -mt-6 px-6 pt-4 pb-3 bg-[rgba(17,24,39,0.85)] backdrop-blur-sm rounded-t-2xl flex items-center justify-between">
+        <div className="relative w-full max-w-[680px] font-ui rounded-2xl shadow-xl ring-1 ring-white/10 bg-[var(--howto-bg)] text-slate-100 flex flex-col overflow-hidden max-h-[clamp(420px,85dvh,760px)]">
+          <div className="sticky top-0 z-10 px-6 py-4 bg-[var(--howto-bg)] backdrop-blur-sm rounded-t-2xl flex items-center justify-between border-b border-white/10">
             <h2 className="font-display text-2xl font-extrabold">{lang === 'en' ? 'How to Play' : 'Πώς παίζεται'}</h2>
             <div className="flex items-center gap-2">
-              <button onClick={() => setLang('en')} className={`pill bg-white text-black ${lang==='en' ? 'ring-2 ring-[var(--brand-accent)]' : ''}`}>EN</button>
-              <button onClick={() => setLang('el')} className={`pill bg-white text-black ${lang==='el' ? 'ring-2 ring-[var(--brand-accent)]' : ''}`}>ΕΛ</button>
+              <button onClick={() => setLang('en')} className={`pill bg-white text-black ${lang==='en' ? 'ring-2 ring-[var(--brand-accent)]' : ''}`}>🇬🇧 EN</button>
+              <button onClick={() => setLang('el')} className={`pill bg-white text-black ${lang==='el' ? 'ring-2 ring-[var(--brand-accent)]' : ''}`}>🇬🇷 ΕΛ</button>
               <button onClick={onClose} className="btn btn-neutral">Close ✕</button>
             </div>
           </div>
           {lang === 'en' ? (
-            <div className="mt-4 space-y-4 text-slate-200 text-sm">
+            <div className="scroll-area px-6 pb-6 pt-2 flex-1 min-h-0 space-y-4 text-slate-100 text-sm md:text-base leading-relaxed">
               <section>
                 <h3 className="font-display text-lg font-bold">Quick Start</h3>
                 <ul className="mt-2 list-disc pl-5 space-y-1">
@@ -551,17 +569,18 @@ function HowToModal({ onClose }) {
                 <h3 className="font-display text-lg font-bold">Finale — Jeopardy Style</h3>
                 <ul className="mt-2 list-disc pl-5 space-y-1">
                   <li><strong>Before</strong> the final question is shown, each player places a bet (0–3 points) on the Category screen.</li>
-                  <li><strong>Right = +bet</strong>, <strong>Wrong = −bet</strong>. First‑to‑say wins (only one <em>Correct</em> may be applied). No multipliers.</li>
-                  <li>If you want both players to answer independently, use the <em>write‑down</em> variant; otherwise award based on who answered correctly per your house rule.</li>
+                  <li><strong>Right = +bet</strong>, <strong>Wrong = −bet</strong>. First-to-say wins (only one <em>Correct</em> may be applied). No multipliers.</li>
+                  <li>If you want both players to answer independently, use the <em>write-down</em> variant; otherwise award based on who answered correctly per your house rule.</li>
                 </ul>
               </section>
               <section>
                 <h3 className="font-display text-lg font-bold">Timer & Sharing</h3>
                 <p className="mt-2">15s per question by default. At the end, save a PNG share card for Instagram.</p>
               </section>
+              <div className="howto-shadow" />
             </div>
           ) : (
-            <div className="mt-4 space-y-4 text-slate-200 text-sm">
+            <div className="scroll-area px-6 pb-6 pt-2 flex-1 min-h-0 space-y-4 text-slate-100 text-sm md:text-base leading-relaxed">
               <section>
                 <h3 className="font-display text-lg font-bold">Γρήγορη εκκίνηση</h3>
                 <ul className="mt-2 list-disc pl-5 space-y-1">
@@ -583,13 +602,14 @@ function HowToModal({ onClose }) {
                 <ul className="mt-2 list-disc pl-5 space-y-1">
                   <li><strong>Πριν</strong> εμφανιστεί η τελική ερώτηση, κάθε παίκτης ποντάρει (0–3) στην οθόνη Κατηγορίας.</li>
                   <li><strong>Σωστό = +στοίχημα</strong>, <strong>Λάθος = −στοίχημα</strong>. Κερδίζει ο πιο γρήγορος (μία μόνο <em>Σωστό</em> επιλογή). Δεν ισχύουν πολλαπλασιαστές.</li>
-                  <li>Αν θέλετε να απαντήσουν και οι δύο ανεξάρτητα, χρησιμοποιήστε τη λύση <em>γράψε‑την‑απάντηση</em>.</li>
+                  <li>Αν θέλετε να απαντήσουν και οι δύο ανεξάρτητα, χρησιμοποιήστε τη λύση <em>γράψε-την-απάντηση</em>.</li>
                 </ul>
               </section>
               <section>
                 <h3 className="font-display text-lg font-bold">Χρόνος & Κοινοποίηση</h3>
                 <p className="mt-2">15s ανά ερώτηση. Στο τέλος, αποθηκεύστε την κάρτα αποτελεσμάτων (PNG) για Instagram.</p>
               </section>
+              <div className="howto-shadow" />
             </div>
           )}
         </div>
