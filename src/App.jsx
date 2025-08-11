@@ -1,20 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { questions as DATA_QUESTIONS } from "./data/questions";
 
 /**
  * Football Quiz — single-file React + Tailwind (brand-font edition)
  *
- * New in this version
- * - Removed "bonus question" mechanic entirely.
- * - Added per-player **X2 help**:
- *     • Chosen ONLY on the Category screen.
- *     • One use per player per game.
- *     • Applies to THIS question only.
- *     • Doubles ONLY base points (+1/+2/+3 × basePoints × 2); streak +1 is NOT multiplied.
- *     • Not allowed on the Final question.
- * - Updated Greek & English "How to" text to match rules (incl. who gets points if first is wrong).
- * - Keeps the HowTo modal improvements (matching bg + reliable scroll).
- *
- * Drop this into a Tailwind React app (Vite/CRA). No extra deps.
+ * This version:
+ * - Loads 9 questions (with media) from src/data/questions.js
+ * - Renders image / audio / video per question
+ * - Uses q.points (not q.basePoints) and q.prompt (not q.text)
+ * - Keeps X2 help, final wager, timer, etc.
  */
 
 // ——— Brand font wiring ———
@@ -22,8 +16,8 @@ const FONT_LINK_HREF =
   "https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Noto+Sans:wght@400;700&display=swap&subset=greek";
 
 const FONT_FAMILIES = {
-  display: 'Inter, "Noto Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
-  ui: 'Inter, "Noto Sans", system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+  display: '"Noto Sans", Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+  ui: '"Noto Sans",Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
   mono: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace',
 };
 
@@ -40,15 +34,6 @@ const THEME = {
 const STORAGE_KEY = "quiz_prototype_state_v2";
 const STAGES = { CATEGORY: "category", QUESTION: "question", ANSWER: "answer", FINALE: "finale", RESULTS: "results" };
 const DEFAULT_TIMER_SECONDS = 15;
-
-// Sample questions — basePoints only (no bonus flag)
-const QUESTIONS = [
-  { id: "q1", category: "ΚΥΠΡΙΑΚΟ",        basePoints: 1, text: "Ποιος ήταν ο τερματοφύλακας του ΑΠΟΕΛ στον αγώνα Athletic Bilbao – ΑΠΟΕΛ (3–2);", answer: "Waterman",           fact: "Ο Μπόι Βάτερμαν ήταν καθοριστικός στην ευρωπαϊκή πορεία του ΑΠΟΕΛ." },
-  { id: "q2", category: "PREMIER LEAGUE",   basePoints: 1, text: "Ποια ομάδα κατέκτησε πρώτη την Premier League (1992–93);",                        answer: "Manchester United", fact: "Πρώτη χρονιά της Premier League μετά τη μετονομασία της First Division." },
-  { id: "q3", category: "CHAMPIONS LEAGUE", basePoints: 2, text: "Σε ποια πόλη διεξήχθη ο τελικός UCL 2016 Real–Atlético;",                        answer: "Μιλάνο",             fact: "Το San Siro φιλοξένησε τον τελικό, που κρίθηκε στα πέναλτι." },
-  { id: "q4", category: "EURO",             basePoints: 1, text: "Ποια χώρα κατέκτησε το EURO 2004;",                                              answer: "Ελλάδα",             fact: "Η Ελλάδα νίκησε την Πορτογαλία στο Ντα Λουζ (1–0)." },
-  { id: "q5", category: "ΤΕΛΙΚΟΣ",          basePoints: 1, text: "Finale: Ποιος είναι ο πρώτος σκόρερ στην ιστορία του EURO;",                      answer: "Κριστιάνο Ρονάλντο", fact: "Κατέχει τα περισσότερα γκολ σε τελικά στάδια EURO." },
-];
 
 function clamp(n, a, b) { return Math.min(b, Math.max(a, n)); }
 function usePersistentState(key, initialValue) {
@@ -98,10 +83,24 @@ export default function QuizPrototype() {
     return () => { if (linkEl) document.head.removeChild(linkEl); if (styleEl) document.head.removeChild(styleEl); };
   }, []);
 
+  // ——— Load & order questions (from src/data/questions.js) ———
+  const QUESTIONS = useMemo(
+    () => [...DATA_QUESTIONS].sort((a, b) => (a.order ?? 0) - (b.order ?? 0)),
+    []
+  );
+
   // ——— Core game state ———
   const [index, setIndex] = usePersistentState(`${STORAGE_KEY}:index`, 0);
   const [stage, setStage] = usePersistentState(`${STORAGE_KEY}:stage`, STAGES.CATEGORY);
-  const lastIndex = QUESTIONS.length - 1; const isFinalIndex = index === lastIndex; const q = QUESTIONS[index];
+
+  const lastIndex = QUESTIONS.length - 1;
+  const isFinalIndex = index === lastIndex;
+  const q = QUESTIONS[index] ?? QUESTIONS[0];
+
+  // Safety: if persisted index is out-of-range (e.g., you changed question count)
+  useEffect(() => {
+    if (index > lastIndex) setIndex(lastIndex < 0 ? 0 : lastIndex);
+  }, [index, lastIndex, setIndex]);
 
   // ——— X2 help state (one use per player per game; arm only on Category) ———
   const [x2, setX2] = usePersistentState(`${STORAGE_KEY}:x2`, {
@@ -119,32 +118,57 @@ export default function QuizPrototype() {
   const [finalResolved, setFinalResolved] = usePersistentState(`${STORAGE_KEY}:finalResolved`, { p1: false, p2: false });
   const [finalFirst, setFinalFirst] = usePersistentState(`${STORAGE_KEY}:finalFirst`, null);
 
-  // Timer
-  const [timerOn, setTimerOn] = usePersistentState(`${STORAGE_KEY}:timerOn`, true);
-  const [timeLeft, setTimeLeft] = useState(DEFAULT_TIMER_SECONDS);
-  const timerRef = useRef(null);
-  const [showHowTo, setShowHowTo] = useState(false);
-  const [howToLang, setHowToLang] = useState('en');
+// Timer
+const [timerOn, setTimerOn] = usePersistentState(`${STORAGE_KEY}:timerOn`, true);
+const [timeLeft, setTimeLeft] = useState(DEFAULT_TIMER_SECONDS);
+const timerRef = useRef(null);
+const [showHowTo, setShowHowTo] = useState(false);
+const [howToLang, setHowToLang] = useState('en');
 
-  // On entering Category: reset finale flags for safety; timer reset; (X2 stays as chosen)
-  useEffect(() => {
-    if (stage !== STAGES.CATEGORY) return;
-    setFinalResolved({ p1: false, p2: false }); setFinalFirst(null); setWager({ p1: 0, p2: 0 });
-    setTimeLeft(DEFAULT_TIMER_SECONDS);
-  }, [stage, index]);
+// Auto-pause the countdown while media is playing
+const [autoPause, setAutoPause] = useState(false);
+// Clear auto-pause whenever we leave the Question stage
+useEffect(() => {
+  if (stage !== STAGES.QUESTION) setAutoPause(false);
+}, [stage]);
 
-  useEffect(() => {
-    if (stage !== STAGES.QUESTION || !timerOn) return;
-    const start = Date.now(); const total = DEFAULT_TIMER_SECONDS * 1000;
-    timerRef.current = setInterval(() => {
-      const left = Math.max(0, total - (Date.now() - start));
-      setTimeLeft(Math.ceil(left / 1000));
-      if (left <= 0) { clearInterval(timerRef.current); timerRef.current = null; setStage(STAGES.ANSWER); }
-    }, 100);
-    return () => { if (timerRef.current) { clearInterval(timerRef.current); timerRef.current = null; } };
-  }, [stage, timerOn]);
+// On entering Category: reset finale flags; reset timer
+useEffect(() => {
+  if (stage !== STAGES.CATEGORY) return;
+  setFinalResolved({ p1: false, p2: false });
+  setFinalFirst(null);
+  setWager({ p1: 0, p2: 0 });
+  setTimeLeft(DEFAULT_TIMER_SECONDS);
+}, [stage, index]);
 
-  const progress = useMemo(() => clamp(1 - timeLeft / DEFAULT_TIMER_SECONDS, 0, 1), [timeLeft]);
+// Countdown (pauses if autoPause is true)
+useEffect(() => {
+  if (stage !== STAGES.QUESTION || !timerOn || autoPause) return;
+
+  const start = Date.now();
+  const total = timeLeft * 1000; // continue from remaining time
+
+  timerRef.current = setInterval(() => {
+    const leftMs = Math.max(0, total - (Date.now() - start));
+    const leftSec = Math.ceil(leftMs / 1000);
+    setTimeLeft(leftSec);
+    if (leftMs <= 0) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+      setStage(STAGES.ANSWER);
+    }
+  }, 100);
+
+  return () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  };
+}, [stage, timerOn, autoPause]);
+
+const progress = useMemo(() => clamp(1 - timeLeft / DEFAULT_TIMER_SECONDS, 0, 1), [timeLeft]);
+
 
   // X2 helpers
   function canArmX2(side) {
@@ -164,8 +188,8 @@ export default function QuizPrototype() {
   }
 
   function awardTo(side, base = 1, { useMultiplier = true } = {}) {
-    // Multiplier = basePoints × (x2 active? 2 : 1). Streak +1 applied after, not multiplied.
-    const baseMult = (q.basePoints || 1) * (useMultiplier ? (isX2ActiveFor(side) ? 2 : 1) : 1);
+    // Multiplier = points × (x2 active? 2 : 1). Streak +1 applied after, not multiplied.
+    const baseMult = (q.points || 1) * (useMultiplier ? (isX2ActiveFor(side) ? 2 : 1) : 1);
     const baseDelta = base * baseMult;
 
     if (side === "p1") {
@@ -270,11 +294,11 @@ export default function QuizPrototype() {
         <div className="flex items-center justify-between">
           <div className="text-rose-400 text-4xl">🏆</div>
           <div className="flex items-center gap-2">
-            <div className="pill text-white bg-slate-700/70">Category ×{q.basePoints || 1}</div>
+            <div className="pill text-white bg-slate-700/70">Category ×{q.points || 1}</div>
           </div>
         </div>
         <h2 className="mt-4 text-center text-3xl font-extrabold tracking-wide font-display">{q.category}</h2>
-        <p className="mt-2 text-center font-ui" style={{ color: THEME.accent }}>x{q.basePoints} Points</p>
+        <p className="mt-2 text-center font-ui" style={{ color: THEME.accent }}>x{q.points || 1} Points</p>
 
         {/* X2 controls (Category only). Disabled on Final */}
         <div className="mt-5 rounded-2xl bg-slate-900/50 p-4">
@@ -342,7 +366,7 @@ export default function QuizPrototype() {
 
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
-            <div className="rounded-full bg-slate-700/70 px-3 py-1 text-xs font-semibold">Category ×{q.basePoints || 1}</div>
+            <div className="rounded-full bg-slate-700/70 px-3 py-1 text-xs font-semibold">Category ×{q.points || 1}</div>
             {/* Show per-player X2 status */}
             {isX2ActiveFor("p1") && <div className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: "linear-gradient(90deg,#BA1ED3,#F11467)" }}>{p1.name}: ×2</div>}
             {isX2ActiveFor("p2") && <div className="rounded-full px-3 py-1 text-xs font-semibold text-white" style={{ background: "linear-gradient(90deg,#00A7D7,#2563EB)" }}>{p2.name}: ×2</div>}
@@ -350,7 +374,14 @@ export default function QuizPrototype() {
           <button onClick={() => setTimerOn((v) => !v)} className="btn btn-neutral text-xs" aria-label="toggle timer">{timerOn ? "Pause" : "Resume"}</button>
         </div>
 
-        <h3 className="mt-4 font-display text-2xl font-bold leading-snug">{q.text}</h3>
+        <h3 className="mt-4 font-display text-2xl font-bold leading-snug">{q.prompt}</h3>
+
+        {/* Media (image/audio/video) */}
+        <div className="mt-4">
+          <Media media={q.media} onPlayingChange={setAutoPause} />
+
+        </div>
+
         <div className="mt-6 flex justify-center"><button onClick={() => setStage(STAGES.ANSWER)} className="btn btn-accent">Reveal Answer</button></div>
       </StageCard>
     );
@@ -448,7 +479,7 @@ export default function QuizPrototype() {
           <div className="mt-2 font-ui text-sm text-slate-400">Longest streaks: {p1.name} {p1.maxStreak} • {p2.name} {p2.maxStreak}</div>
         </div>
         <div className="mt-6 flex flex-wrap justify-center gap-3 font-ui">
-          <button onClick={exportShareCard} className="btn btn-neutral">Save Share Card (PNG)</button>
+          
           <button onClick={resetGame} className="btn btn-accent">Play Again</button>
         </div>
       </StageCard>
@@ -499,6 +530,61 @@ export default function QuizPrototype() {
       </div>
     );
   }
+
+function Media({ media, onPlayingChange }) {
+  if (!media || !media.kind) return null;
+  const playing = (v) => onPlayingChange?.(v);
+
+  if (media.kind === "image") {
+    return (
+      <img
+        src={media.src}
+        alt={media.alt || ""}
+        loading="lazy"
+        className="max-h-96 w-auto mx-auto rounded-xl"
+      />
+    );
+  }
+
+  if (media.kind === "audio") {
+    return (
+      <audio
+        key={media.src}
+        controls
+        preload="metadata"
+        playsInline
+        className="w-full mt-2"
+        onPlay={() => playing(true)}
+        onPause={() => playing(false)}
+        onEnded={() => playing(false)}
+      >
+        <source src={media.src} type="audio/mpeg" />
+        Your browser can’t play this audio.
+      </audio>
+    );
+  }
+
+  if (media.kind === "video") {
+    return (
+      <video
+        key={media.src}
+        controls
+        preload="metadata"
+        playsInline
+        poster={media.poster}
+        className="w-full max-h-[70vh] rounded-xl"
+        onPlay={() => playing(true)}
+        onPause={() => playing(false)}
+        onEnded={() => playing(false)}
+      >
+        <source src={media.src} type={media.type || "video/mp4"} />
+        Your browser can’t play this video.
+      </video>
+    );
+  }
+
+  return null;
+}
 
   // ——— Lightweight self-tests (run with #selftest hash) ———
   useEffect(() => {
