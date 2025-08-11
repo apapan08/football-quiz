@@ -168,8 +168,8 @@ export default function QuizPrototype() {
   );
 
   // How-to modal
-  const [showHowTo, setShowHowTo] = useState(false);
-  const [howToLang, setHowToLang] = useState("en");
+  const [showHowTo, setShowHowTo] = useState(true);
+  const [howToLang, setHowToLang] = useState("el");
 
   // On entering Category: reset finale flags
   useEffect(() => {
